@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Xico – from tdelegend</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            xico: {
+              green: '#16a34a',
+              yellow: '#eab308',
+              dark: '#0f172a',
+              darker: '#020617'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+<body class="bg-xico-darker text-white h-screen flex overflow-hidden">
+
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen" class="fixed inset-0 bg-xico-darker flex flex-col items-center justify-center z-50">
+    <div class="text-center mb-10">
+      <h1 class="text-7xl font-extrabold tracking-tight">
+        <span class="text-xico-yellow">xico</span>
+        <span class="text-4xl">🤖</span>
+      </h1>
+      <p class="text-xico-green text-sm mt-2 font-medium tracking-widest uppercase">from tdelegend</p>
+    </div>
+
+    <button id="google-login-btn" 
+            class="flex items-center gap-3 bg-white text-gray-800 px-8 py-3.5 rounded-xl font-semibold text-lg hover:bg-gray-100 transition shadow-lg">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6" alt="Google">
+      Continue with Google
+    </button>
+
+    <p class="text-gray-500 text-sm mt-6">Only Gmail login is allowed</p>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="app" class="hidden w-full h-full flex">
+
+    <!-- Sidebar -->
+    <div class="w-64 bg-xico-dark border-r border-gray-800 flex flex-col">
+      <div class="p-4 border-b border-gray-800">
+        <button onclick="newChat()" 
+                class="w-full flex items-center gap-2 bg-xico-green hover:bg-green-600 text-white py-2.5 px-4 rounded-lg font-medium transition">
+          <span class="text-xl">+</span> New chat
+        </button>
+      </div>
+
+      <div id="history-list" class="flex-1 overflow-y-auto p-3 space-y-1 scrollbar-hide"></div>
+
+      <div class="p-4 border-t border-gray-800">
+        <div class="flex items-center gap-3">
+          <img id="user-photo" class="w-9 h-9 rounded-full bg-gray-700" src="" alt="User">
+          <div class="flex-1 min-w-0">
+            <p id="user-email" class="text-sm font-medium truncate"></p>
+            <button onclick="logout()" class="text-xs text-gray-400 hover:text-white">Logout</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Chat -->
+    <div class="flex-1 flex flex-col">
+      <div class="h-14 border-b border-gray-800 flex items-center justify-center">
+        <h2 class="text-xl font-bold">
+          <span class="text-xico-yellow">xico</span> 🤖
+          <span class="text-xs text-xico-green ml-2 font-normal">from tdelegend</span>
+        </h2>
+      </div>
+
+      <div id="messages" class="flex-1 overflow-y-auto p-6 space-y-6"></div>
+
+      <div class="border-t border-gray-800 p-4">
+        <div class="max-w-3xl mx-auto relative">
+          <textarea id="user-input" rows="1" placeholder="Message Xico..."
+                    class="w-full bg-gray-900 border border-gray-700 rounded-2xl py-3.5 pl-5 pr-14 text-white placeholder-gray-500 focus:outline-none focus:border-xico-green resize-none"
+                    onkeydown="handleKey(event)"></textarea>
+          <button onclick="sendMessage()" 
+                  class="absolute right-3 bottom-3 bg-xico-green hover:bg-green-600 text-white w-9 h-9 rounded-lg flex items-center justify-center transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
+          </button>
+        </div>
+        <p class="text-center text-xs text-gray-500 mt-2">Xico can make mistakes. Check important info.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+  <script>
+    // Your real Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyCJr75nG93UWYdIAjwjU7qDB3YYxeEFKHs",
+      authDomain: "xico-100.firebaseapp.com",
+      projectId: "xico-100",
+      storageBucket: "xico-100.firebasestorage.app",
+      messagingSenderId: "941435486274",
+      appId: "1:941435486274:web:61f4e5d35baafd1a92eddb",
+      measurementId: "G-F6D1TZLWSX"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    let currentChatId = null;
+    let chats = JSON.parse(localStorage.getItem('xico_chats') || '{}');
+
+    // Check login state
+    auth.onAuthStateChanged((user) => {
+      if (user) {
+        showApp(user);
+      } else {
+        document.getElementById('login-screen').classList.remove('hidden');
+        document.getElementById('app').classList.add('hidden');
+      }
+    });
+
+    // Real Google Login
+    document.getElementById('google-login-btn').addEventListener('click', () => {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+
+      auth.signInWithPopup(provider)
+        .then((result) => {
+          console.log("Successfully logged in:", result.user.email);
+        })
+        .catch((error) => {
+          console.error(error);
+          alert("Login error: " + error.message);
+        });
+    });
+
+    function showApp(user) {
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+
+      document.getElementById('user-email').textContent = user.email;
+      document.getElementById('user-photo').src = user.photoURL || '';
+      renderHistory();
+      if (!currentChatId) showWelcome();
+    }
+
+    function logout() {
+      auth.signOut();
+    }
+
+    // ===== Chat functions =====
+    function newChat() {
+      currentChatId = 'chat_' + Date.now();
+      chats[currentChatId] = { title: "New chat", messages: [] };
+      saveChats();
+      renderHistory();
+      clearMessages();
+      showWelcome();
+    }
+
+    function loadChat(id) {
+      currentChatId = id;
+      clearMessages();
+      chats[id].messages.forEach(msg => appendMessage(msg.role, msg.content));
+      renderHistory();
+    }
+
+    function clearMessages() {
+      document.getElementById('messages').innerHTML = '';
+    }
+
+    function showWelcome() {
+      document.getElementById('messages').innerHTML = `
+        <div class="max-w-3xl mx-auto text-center py-20">
+          <h1 class="text-5xl font-extrabold mb-4">
+            <span class="text-xico-yellow">xico</span> 🤖
+          </h1>
+          <p class="text-xico-green text-sm tracking-widest uppercase mb-8">from tdelegend</p>
+          <p class="text-gray-400 text-lg">How can I help you today?</p>
+        </div>`;
+    }
+
+    function appendMessage(role, content) {
+      const container = document.getElementById('messages');
+      const isUser = role === 'user';
+      const div = document.createElement('div');
+      div.className = `max-w-3xl mx-auto flex gap-4 ${isUser ? 'justify-end' : ''}`;
+
+      if (isUser) {
+        div.innerHTML = `<div class="bg-xico-green text-white px-5 py-3 rounded-2xl rounded-br-md max-w-[80%]">${escapeHtml(content)}</div>`;
+      } else {
+        div.innerHTML = `
+          <div class="w-8 h-8 rounded-full bg-xico-yellow flex items-center justify-center text-black font-bold text-sm flex-shrink-0">X</div>
+          <div class="bg-gray-900 px-5 py-3 rounded-2xl rounded-bl-md max-w-[85%]">${formatMessage(content)}</div>`;
+      }
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function formatMessage(text) {
+      return escapeHtml(text)
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`(.*?)`/g, '<code class="bg-gray-800 px-1 rounded">$1</code>')
+        .replace(/\n/g, '<br>');
+    }
+
+    function escapeHtml(text) {
+      return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function handleKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('user-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      if (!currentChatId) newChat();
+
+      chats[currentChatId].messages.push({ role: 'user', content: text });
+      if (chats[currentChatId].messages.length === 1) {
+        chats[currentChatId].title = text.slice(0, 40) + (text.length > 40 ? '...' : '');
+      }
+      appendMessage('user', text);
+      input.value = '';
+      saveChats();
+      renderHistory();
+
+      // Temporary demo reply (we will replace this with real AI soon)
+      setTimeout(() => {
+        const reply = `You are now logged in with your real Google account!\n\nThis is still a temporary reply.\n\nNext step: we will connect real AI + web browsing.`;
+        chats[currentChatId].messages.push({ role: 'assistant', content: reply });
+        appendMessage('assistant', reply);
+        saveChats();
+      }, 700);
+    }
+
+    function saveChats() {
+      localStorage.setItem('xico_chats', JSON.stringify(chats));
+    }
+
+    function renderHistory() {
+      const list = document.getElementById('history-list');
+      list.innerHTML = '';
+      Object.entries(chats)
+        .sort((a, b) => b[0].localeCompare(a[0]))
+        .forEach(([id, chat]) => {
+          const btn = document.createElement('button');
+          btn.className = `w-full text-left px-3 py-2.5 rounded-lg text-sm truncate hover:bg-gray-800 transition ${
+            id === currentChatId ? 'bg-gray-800 text-xico-yellow' : 'text-gray-300'
+          }`;
+          btn.textContent = chat.title || 'New chat';
+          btn.onclick = () => loadChat(id);
+          list.appendChild(btn);
+        });
+    }
+  </script>
+</body>
+</html>
